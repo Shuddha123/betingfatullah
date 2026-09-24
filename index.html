@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>৳5 Color Match</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#0f172a;color:#fff}
+.container{max-width:750px;margin:auto;padding:20px}h1{margin-bottom:5px}.subtitle{color:#94a3b8;margin-bottom:20px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:16px;margin-bottom:15px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:#111827;padding:14px;border-radius:12px}
+.stat small{color:#94a3b8}.stat b{display:block;font-size:22px;margin-top:5px}
+.players{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+.player{background:#111827;border:2px solid #334155;border-radius:12px;padding:12px;cursor:pointer}.player.active{border-color:#8b5cf6}
+.player-name{font-weight:bold;font-size:17px}.balance{font-size:22px;font-weight:bold;margin-top:5px}
+.color-badge{display:inline-block;padding:5px 9px;border-radius:7px;font-size:12px;font-weight:bold;margin-top:5px}
+.RED{background:#dc2626}.GREEN{background:#16a34a}.BLUE{background:#2563eb}.YELLOW{background:#ca8a04}.NONE{background:#475569}
+.colors{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.color-btn{height:80px;border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer}
+.red{background:#dc2626}.green{background:#16a34a}.blue{background:#2563eb}.yellow{background:#ca8a04}
+.input-row,.buttons{display:flex;gap:10px;flex-wrap:wrap}
+input{flex:1;min-width:180px;padding:12px;border-radius:10px;border:1px solid #475569;background:#111827;color:#fff;font-size:16px}
+.main-btn,.rematch-btn,.reset-btn{flex:1;min-width:150px;padding:13px;border-radius:10px;font-weight:bold;font-size:15px}
+.main-btn{border:none;background:#8b5cf6;color:#fff}.rematch-btn{border:none;background:#059669;color:#fff}.reset-btn{border:1px solid #475569;background:#334155;color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}.message{text-align:center;background:#111827;border:1px solid #334155;border-radius:12px;padding:15px;margin-top:12px}
+.timer-bar{width:100%;height:7px;background:#334155;border-radius:10px;margin-top:10px;overflow:hidden}.timer-progress{height:100%;width:100%;background:#8b5cf6;transition:width 1s linear}
+.history-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #334155}.muted{color:#94a3b8;font-size:13px}.win{font-size:26px;font-weight:bold}
+@media(max-width:550px){.stats{grid-template-columns:1fr 1fr}.players{grid-template-columns:1fr}.colors{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🎨 ৳5 Color Match</h1>
+<div class="subtitle">Virtual ৳ credits • 4 Player Game</div>
+
+<div class="stats">
+<div class="stat"><small>💰 POT</small><b id="pot">৳0</b></div>
+<div class="stat"><small>🏦 BANK</small><b id="bank">৳0</b></div>
+<div class="stat"><small>⏱️ TIME</small><b id="time">20s</b></div>
+</div>
+
+<div class="card">
+<h3>👥 Players</h3>
+<div id="players" class="players"></div>
+<p class="muted">First select a player, then choose their color.</p>
+<div class="colors">
+<button class="color-btn red" data-color="RED">🔴<br>RED</button>
+<button class="color-btn green" data-color="GREEN">🟢<br>GREEN</button>
+<button class="color-btn blue" data-color="BLUE">🔵<br>BLUE</button>
+<button class="color-btn yellow" data-color="YELLOW">🟡<br>YELLOW</button>
+</div>
+<div id="message" class="message">Add 4 players.</div>
+</div>
+
+<div class="card">
+<h3>➕ Add Player</h3>
+<div class="input-row">
+<input id="playerName" type="text" placeholder="Enter player name">
+<button class="main-btn" id="addPlayer">Add Player — ৳5</button>
+</div>
+<p class="muted">Every player starts with ৳5 virtual credits.</p>
+</div>
+
+<div class="buttons">
+<button class="main-btn" id="startMatch">🎲 Start Match</button>
+<button class="rematch-btn" id="rematch" disabled>🔄 Rematch All Players</button>
+<button class="reset-btn" id="reset">↻ Reset</button>
+</div>
+
+<div class="card">
+<b>Match Timer</b>
+<div class="timer-bar"><div class="timer-progress" id="timerProgress"></div></div>
+</div>
+
+<div class="card"><h3>🏆 Leaderboard</h3><div id="leaderboard"><p class="muted">No matches yet.</p></div></div>
+<div class="card"><h3>📜 Match History</h3><div id="history"><p class="muted">No matches yet.</p></div></div>
+</div>
+
+<script>
+let players=[],selectedPlayer=-1,bank=0,pot=0,time=20,round=1,timer=null,locked=false,matchFinished=false,history=[];
+const playersDiv=document.getElementById("players"),message=document.getElementById("message"),potDisplay=document.getElementById("pot"),bankDisplay=document.getElementById("bank"),timeDisplay=document.getElementById("time"),leaderboard=document.getElementById("leaderboard"),historyDiv=document.getElementById("history"),rematchButton=document.getElementById("rematch"),timerProgress=document.getElementById("timerProgress");
+
+document.getElementById("addPlayer").addEventListener("click",()=>{
+ if(players.length>=4){message.textContent="Maximum 4 players allowed.";return}
+ let name=document.getElementById("playerName").value.trim()||"Player "+(players.length+1);
+ if(players.some(p=>p.name.toLowerCase()===name.toLowerCase())){message.textContent="This player already exists.";return}
+ players.push({name,balance:5,color:null,bet:0,wins:0,streak:0});
+ selectedPlayer=players.length-1;
+ document.getElementById("playerName").value="";
+ message.textContent=name+" added. Choose a color.";
+ render();
+});
+
+document.querySelectorAll(".color-btn").forEach(button=>{
+ button.addEventListener("click",()=>{
+  if(locked)return;
+  if(selectedPlayer===-1){message.textContent="First select a player.";return}
+  players[selectedPlayer].color=button.dataset.color;
+  message.textContent=players[selectedPlayer].name+" → "+button.dataset.color+" ✅";
+  render();
+ });
+});
+
+function renderPlayers(){
+ playersDiv.innerHTML="";
+ if(!players.length){playersDiv.innerHTML='<div class="muted">No players yet.</div>';return}
+ players.forEach((player,index)=>{
+  const div=document.createElement("div");
+  div.className="player "+(index===selectedPlayer?"active":"");
+  const colorClass=player.color||"NONE";
+  div.innerHTML=`<div class="player-name">${index===selectedPlayer?"👉 ":""}${escapeHtml(player.name)}</div>
+  <div class="balance">৳${player.balance}</div>
+  <span class="color-badge ${colorClass}">${player.color||"No color"}</span><br>
+  <small>🏆 ${player.wins} wins</small>`;
+  div.addEventListener("click",()=>{
+   if(locked)return;
+   selectedPlayer=index;
+   message.textContent=player.name+" selected. Choose a color.";
+   render();
+  });
+  playersDiv.appendChild(div);
+ });
+}
+
+function render(){
+ renderPlayers();
+ pot=players.reduce((t,p)=>t+p.bet,0);
+ potDisplay.textContent="৳"+pot;
+ bankDisplay.textContent="৳"+bank;
+ timeDisplay.textContent=time+"s";
+ timerProgress.style.width=(time/20*100)+"%";
+ renderLeaderboard();
+ renderHistory();
+ rematchButton.disabled=!matchFinished||players.length!==4;
+}
+
+function renderLeaderboard(){
+ leaderboard.innerHTML="";
+ if(!players.length){leaderboard.innerHTML='<p class="muted">No matches yet.</p>';return}
+ [...players].sort((a,b)=>b.wins-a.wins).forEach((p,i)=>{
+  const row=document.createElement("div");row.className="history-row";
+  row.innerHTML=`<span>${i+1}. ${escapeHtml(p.name)}</span><b>${p.wins} wins • ৳${p.balance}</b>`;
+  leaderboard.appendChild(row);
+ });
+}
+
+function renderHistory(){
+ historyDiv.innerHTML="";
+ if(!history.length){historyDiv.innerHTML='<p class="muted">No matches yet.</p>';return}
+ [...history].reverse().forEach(m=>{
+  const row=document.createElement("div");row.className="history-row";
+  row.innerHTML=`<span>Round ${m.round} • ${m.color} • ${escapeHtml(m.winner)}</span><b>+৳15</b>`;
+  historyDiv.appendChild(row);
+ });
+}
+
+document.getElementById("startMatch").addEventListener("click",startMatch);
+
+function startMatch(){
+ if(players.length!==4){message.textContent="Exactly 4 players are required.";return}
+ const noColor=players.find(p=>!p.color);
+ if(noColor){message.textContent=noColor.name+" has not selected a color.";return}
+ const poor=players.find(p=>p.balance<5);
+ if(poor){message.textContent=poor.name+" needs at least ৳5.";return}
+ locked=true;
+ players.forEach(p=>{p.balance-=5;p.bet=5});
+ pot=20;time=20;message.textContent="🎯 Match started!";
+ render();
+ if(timer)clearInterval(timer);
+ timer=setInterval(()=>{
+  time--;render();
+  if(time<=0){clearInterval(timer);finishMatch();}
+ },1000);
+}
+
+function finishMatch(){
+ locked=true;
+ const colors=["RED","GREEN","BLUE","YELLOW"];
+ const winningColor=colors[Math.floor(Math.random()*colors.length)];
+ const eligible=players.filter(p=>p.color===winningColor);
+ const winner=eligible.length?eligible[Math.floor(Math.random()*eligible.length)]:players[Math.floor(Math.random()*players.length)];
+ bank+=5;
+ winner.balance+=15;
+ winner.wins++;
+ winner.streak++;
+ players.forEach(p=>{p.bet=0;if(p!==winner)p.streak=0});
+ history.push({round,color:winningColor,winner:winner.name});
+ round++;
+ matchFinished=true;
+ message.innerHTML=`<div class="win">🏆 ${winningColor} WINS!</div><br>${escapeHtml(winner.name)} gets <b>৳15</b> virtual credits.<br><br>🏦 Bank +৳5`;
+ render();
+}
+
+rematchButton.addEventListener("click",()=>{
+ if(!matchFinished||players.length!==4)return;
+ players.forEach(p=>{
+  p.balance+=5;
+  p.bet=0;
+  p.color=null;
+ });
+ selectedPlayer=-1;
+ matchFinished=false;
+ locked=false;
+ time=20;
+ message.innerHTML=`🔄 <b>REMATCH READY!</b><br><br>All 4 players received <b>৳5</b> virtual credits.<br>Choose colors again and start the next match.`;
+ render();
+});
+
+document.getElementById("reset").addEventListener("click",()=>{
+ if(timer)clearInterval(timer);
+ players=[];selectedPlayer=-1;bank=0;pot=0;time=20;round=1;locked=false;matchFinished=false;history=[];
+ message.textContent="Game reset. Add 4 players.";
+ render();
+});
+
+function escapeHtml(str){
+ return String(str).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+}
+
+render();
+</script>
+</body>
+</html>
